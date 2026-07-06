@@ -67,3 +67,15 @@ But every unit of return now requires more risk than before.
 
 Realized a cheeky little detail that portfolio growth follows compounding.
 
+
+
+Then came CAGR, Calmar Ratio, and Sortino Ratio
+
+
+Sortino ratio is better at punishing the negative standard deviations. Cause people don't really complain about a strategy if a stock has upward volatility lol.
+
+
+Calmar Ratio, is kind of weird really. It's like, the average returns you could get compared to the amount of struggle you'd have to go through via the strategy. 
+
+You could say, it's basically letting you decide whether the risk to reward ratio is worth it, but it's like, lowkey similar to sharpe ratio yet different from sharpe ratio. It's just another perspective of looking at what Sharpe ratio is telling you about.
+
