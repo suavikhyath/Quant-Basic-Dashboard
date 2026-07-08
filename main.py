@@ -138,6 +138,6 @@ fig.update_layout(
     showlegend=False  # subplot_titles already label each panel
 )
 
-fig.update_xaxes(title_text="Date", row=5, col=1)
+fig.update_xaxes(title_text="Date", row=4, col=1)
 
 fig.show()
