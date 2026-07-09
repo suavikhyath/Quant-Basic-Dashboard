@@ -9,7 +9,15 @@ from reportlab.pdfgen import canvas
 from io import BytesIO
 from reportlab.lib.utils import ImageReader
 
-st.title("NIFTY 50 Risk-Adjusted Performance Metrics")
+
+st.set_page_config(
+    page_title="Risk-Adjusted Performance Dashboard",
+    page_icon="image.png",  # can be an emoji, or a path/URL to an image
+    layout="wide"
+)
+
+
+st.title("Risk-Adjusted Performance Metrics")
 
 #SIDEBAR
 
