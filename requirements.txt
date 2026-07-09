@@ -3,5 +3,5 @@ yfinance
 plotly
 pandas
 numpy
-kaleido
+kaleido==0.2.1
 reportlab
