@@ -4,6 +4,10 @@ import yfinance as yf
 import numpy as np
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
+from reportlab.lib.pagesizes import letter
+from reportlab.pdfgen import canvas
+from io import BytesIO
+from reportlab.lib.utils import ImageReader
 
 st.title("NIFTY 50 Risk-Adjusted Performance Metrics")
 
@@ -40,9 +44,11 @@ show_sharpe_comp = st.sidebar.checkbox("Sharpe comparison", value=True)
 show_drawdown_comp = st.sidebar.checkbox("Drawdown comparison", value=True)
 show_equity_comp = st.sidebar.checkbox("Equity comparison", value=True)
 
+
 st.sidebar.subheader("Additional Options")
 show_heatmap = st.sidebar.checkbox("Sharpe heatmap by year", value=True)
-
+show_crash_detection = st.sidebar.checkbox("Show Crash Detection", value=True)
+st.sidebar.caption("Refer to the equity curve to observe Crash Detection.")
 
 
 # main body
@@ -145,6 +151,26 @@ full_drawdown = computed_metrics["equity"] / running_max - 1
 current_drawdown = full_drawdown.iloc[-1]
 worst_drawdown = full_drawdown.min()
 
+#CRASH DETECTION:
+def find_crash_periods(drawdown, threshold=-0.20):
+    is_crash = drawdown < threshold
+    
+    # Identify where the crash state changes (start/end of each crash period)
+    crash_shift = is_crash.astype(int).diff()
+    
+    starts = drawdown.index[crash_shift == 1]
+    ends = drawdown.index[crash_shift == -1]
+    
+    # Handle edge case: if data starts already in a crash
+    if is_crash.iloc[0]:
+        starts = starts.insert(0, drawdown.index[0])
+    
+    # Handle edge case: if data ends still in a crash
+    if is_crash.iloc[-1]:
+        ends = ends.insert(len(ends), drawdown.index[-1])
+    
+    return list(zip(starts, ends))
+
 # ANALYTICS PANEL 
 
 st.subheader(f"Latest snapshot — {ticker}")
@@ -173,8 +199,71 @@ with col6:
 with col7:
     st.metric("Current Calmar", f"{computed_metrics['calmar'].iloc[-1]:.2f}" if not computed_metrics['calmar'].empty else "N/A")
 
+st.subheader("Export")
 
-print(yearly_avg_heatmap_data(computed_metrics["sharpe"]).head())
+col_csv, col_pdf, col_png = st.columns(3)
+
+
+with col_csv:
+    stats_df = pd.DataFrame({
+        "Metric": ["Annual Return", "Volatility", "Sharpe", "Sortino", "Current Drawdown", "Worst Drawdown", "Current Calmar"],
+        "Value": [f"{annual_return:.1%}", f"{volatility:.1%}", f"{computed_metrics['sharpe'].iloc[-1]:.2f}" if not computed_metrics['sharpe'].empty else "N/A", f"{computed_metrics['sortino'].iloc[-1]:.2f}" if not computed_metrics['sortino'].empty else "N/A", f"{current_drawdown:.1%}", f"{worst_drawdown:.1%}", f"{computed_metrics['calmar'].iloc[-1]:.2f}" if not computed_metrics['calmar'].empty else "N/A"]
+    })
+
+    csv_bytes = stats_df.to_csv(index=False).encode('utf-8')
+    st.download_button(
+        label="Download Metrics as CSV",
+        data=csv_bytes,
+        file_name=f"{ticker}_metrics.csv",
+        mime="text/csv")
+    
+
+fig_equity = go.Figure()
+fig_equity.add_trace(go.Scatter(x=computed_metrics['equity'].index, y=computed_metrics['equity'], name = f"{ticker}", line=dict(color='blue')))
+fig_equity.update_layout(
+    xaxis=dict(title="Date"),
+    yaxis=dict(title="Equity")
+)
+
+with col_png:
+    png_bytes = fig_equity.to_image(format="png", width=1200, height=600)
+    st.download_button(
+        "Download Equity Curve as PNG",
+        data=png_bytes,
+        file_name=f"{ticker}_equity.png",
+        mime="image/png"
+    )
+
+def build_pdf_report(ticker, stats_df, fig_equity):
+    buffer = BytesIO()
+    c = canvas.Canvas(buffer, pagesize=letter)
+    width, height = letter
+
+    c.setFont("Helvetica-Bold", 16)
+    c.drawString(50, height - 50, f"{ticker} — Performance Report")
+
+    c.setFont("Helvetica", 11)
+    y = height - 90
+    for _, row in stats_df.iterrows():
+        c.drawString(50, y, f"{row['Metric']}: {row['Value']}")
+        y -= 20
+
+    img_bytes = fig_equity.to_image(format="png", width=900, height=500)
+    img_buffer = BytesIO(img_bytes)
+    c.drawImage(ImageReader(img_buffer), 50, y - 350, width=500, height=280)
+
+    c.save()
+    buffer.seek(0)
+    return buffer
+
+with col_pdf:
+    pdf_buffer = build_pdf_report(ticker, stats_df, fig_equity)
+    st.download_button(
+        "Download a Concise PDF Report",
+        data=pdf_buffer,
+        file_name=f"{ticker}_report.pdf",
+        mime="application/pdf"
+    )
 
 if show_heatmap:
     st.header("Sharpe Ratio Heatmap by Year")
@@ -190,7 +279,7 @@ if show_heatmap:
         showscale=True
     ))
 
-    fig_heatmap.update_yaxes(title_text="Year")
+    fig_heatmap.update_yaxes(title_text="Year", dtick=1)
 
     fig_heatmap.update_layout(
         yaxis=dict(autorange="reversed"),  # so earliest year is on top
@@ -203,12 +292,6 @@ if show_heatmap:
 
 if "Equity" in selected_metrics:
     st.header("Equity Curve")
-    fig_equity = go.Figure()
-    fig_equity.add_trace(go.Scatter(x=computed_metrics['equity'].index, y=computed_metrics['equity'], name = f"{ticker}", line=dict(color='blue')))
-    fig_equity.update_layout(
-    xaxis=dict(title="Date"),
-    yaxis=dict(title="Equity")
-)
     if show_equity_comp:
         for comp_ticker, comp_metrics in comparison_data.items():
             fig_equity.add_trace(go.Scatter(
@@ -216,6 +299,21 @@ if "Equity" in selected_metrics:
                 y=comp_metrics["equity"], 
                 name=comp_ticker
             ))
+
+    if show_crash_detection:
+        crash_periods = find_crash_periods(computed_metrics["drawdown"])
+        for start, end in crash_periods:
+            crash_slice = computed_metrics["equity"].loc[start:end]
+            fig_equity.add_trace(go.Scatter(
+                x=crash_slice.index,
+                y=crash_slice,
+                mode = 'lines',
+                fill='tozeroy',
+                fillcolor='rgba(255,0,0,0.35)',
+                line=dict(color = 'rgba(255,0,0,1)'),
+                showlegend=False,
+                # hoverinfo='skip'
+        ))
 
     st.plotly_chart(fig_equity, use_container_width=True)
 
