@@ -233,6 +233,36 @@ fig_equity.update_layout(
     yaxis=dict(title="Equity")
 )
 
+fig_sharpe = go.Figure()
+fig_sharpe.add_trace(go.Scatter(x=computed_metrics['sharpe'].index, y=computed_metrics['sharpe'], name = f"{ticker}", line=dict(color='green')))
+fig_sharpe.update_layout(
+    xaxis=dict(title="Date"),
+    yaxis=dict(title="Sharpe Ratio")
+)
+
+fig_calmar = go.Figure()
+fig_calmar.add_trace(go.Scatter(x=computed_metrics['calmar'].index, y=computed_metrics['calmar'], name=f"{ticker}", line=dict(color='magenta')))
+fig_calmar.update_layout(
+    xaxis=dict(title="Date"),
+    yaxis=dict(title="Calmar Ratio")
+)
+
+fig_sortino = go.Figure()
+fig_sortino.add_trace(go.Scatter(x=computed_metrics['sortino'].index, y=computed_metrics['sortino'], name=f"{ticker}", line=dict(color='cyan')))
+fig_sortino.update_layout(
+    xaxis=dict(title="Date"),
+    yaxis=dict(title="Sortino Ratio")
+)
+
+fig_dd = go.Figure()
+fig_dd.add_trace(go.Scatter(x=full_drawdown.index, y=full_drawdown, name=f"{ticker}", line=dict(color='red')))
+fig_dd.update_layout(
+    xaxis=dict(title="Date"),
+    yaxis=dict(title="Drawdown")
+)
+
+
+
 with col_png:
     png_bytes = fig_equity.to_image(format="png", width=1200, height=600)
     st.download_button(
@@ -242,13 +272,13 @@ with col_png:
         mime="image/png"
     )
 
-def build_pdf_report(ticker, stats_df, fig_equity):
+def build_pdf_report(ticker, stats_df, fig_equity, fig_sharpe, fig_sortino, fig_dd, fig_calmar):
     buffer = BytesIO()
     c = canvas.Canvas(buffer, pagesize=letter)
     width, height = letter
 
     c.setFont("Helvetica-Bold", 16)
-    c.drawString(50, height - 50, f"{ticker} — Performance Report")
+    c.drawString(50, height - 50, f"{ticker} - Performance Report")
 
     c.setFont("Helvetica", 11)
     y = height - 90
@@ -256,16 +286,61 @@ def build_pdf_report(ticker, stats_df, fig_equity):
         c.drawString(50, y, f"{row['Metric']}: {row['Value']}")
         y -= 20
 
+    # First chart: equity curve
+    y -= 20
     img_bytes = fig_equity.to_image(format="png", width=900, height=500)
     img_buffer = BytesIO(img_bytes)
-    c.drawImage(ImageReader(img_buffer), 50, y - 350, width=500, height=280)
+    c.drawImage(ImageReader(img_buffer), 50, y - 280, width=500, height=280)
+    y -= 300
+
+    # If running low on space, starts a new page before the second chart
+    if y < 320:
+        c.showPage()
+        c.setFont("Helvetica", 11)
+        y = height - 50
+
+    # Second chart: Sharpe
+    img_bytes2 = fig_sharpe.to_image(format="png", width=900, height=500)
+    img_buffer2 = BytesIO(img_bytes2)
+    c.drawImage(ImageReader(img_buffer2), 50, y - 280, width=500, height=280)
+    y -= 300
+
+    if y < 320:
+        c.showPage()
+        c.setFont("Helvetica", 11)
+        y = height - 50
+
+    img_bytes3 = fig_sortino.to_image(format="png", width=900, height=500)
+    img_buffer3 = BytesIO(img_bytes3)
+    c.drawImage(ImageReader(img_buffer3), 50, y - 280, width=500, height=280)
+    y -= 300
+
+    if y < 320:
+        c.showPage()
+        c.setFont("Helvetica", 11)
+        y = height - 50
+
+    img_bytes4 = fig_dd.to_image(format="png", width=900, height=500)
+    img_buffer4 = BytesIO(img_bytes4)
+    c.drawImage(ImageReader(img_buffer4), 50, y - 280, width=500, height=280)
+    y -= 300
+
+    if y < 320:
+        c.showPage()
+        c.setFont("Helvetica", 11)
+        y = height - 50
+
+    img_bytes5 = fig_calmar.to_image(format="png", width=900, height=500)
+    img_buffer5 = BytesIO(img_bytes5)
+    c.drawImage(ImageReader(img_buffer5), 50, y - 280, width=500, height=280)
+    y -= 300
 
     c.save()
     buffer.seek(0)
     return buffer
 
 with col_pdf:
-    pdf_buffer = build_pdf_report(ticker, stats_df, fig_equity)
+    pdf_buffer = build_pdf_report(ticker, stats_df, fig_equity, fig_sharpe, fig_sortino, fig_dd, fig_calmar)
     st.download_button(
         "Download a Concise PDF Report",
         data=pdf_buffer,
@@ -309,6 +384,7 @@ if "Equity" in selected_metrics:
             ))
 
     if show_crash_detection:
+        st.caption("The below graph shows in red, the periods of drawdowns < -0.2")
         crash_periods = find_crash_periods(computed_metrics["drawdown"])
         for start, end in crash_periods:
             crash_slice = computed_metrics["equity"].loc[start:end]
@@ -328,12 +404,7 @@ if "Equity" in selected_metrics:
 
 if "Sharpe" in selected_metrics:
     st.header("Sharpe Ratio")
-    fig_sharpe = go.Figure()
-    fig_sharpe.add_trace(go.Scatter(x=computed_metrics['sharpe'].index, y=computed_metrics['sharpe'], name = f"{ticker}", line=dict(color='green')))
-    fig_sharpe.update_layout(
-        xaxis=dict(title="Date"),
-        yaxis=dict(title="Sharpe Ratio")
-    )
+    
 
     if show_sharpe_comp:
         for comp_ticker, comp_metrics in comparison_data.items():
@@ -348,34 +419,18 @@ if "Sharpe" in selected_metrics:
 
 if "Sortino" in selected_metrics:
     st.header("Sortino Ratio")
-    fig_sortino = go.Figure()
-    fig_sortino.add_trace(go.Scatter(x=computed_metrics['sortino'].index, y=computed_metrics['sortino'], name=f"{ticker}", line=dict(color='cyan')))
-    fig_sortino.update_layout(
-        xaxis=dict(title="Date"),
-        yaxis=dict(title="Sortino Ratio")
-    )
-
+    
 
     st.plotly_chart(fig_sortino, use_container_width=True)
 
 if "Calmar" in selected_metrics:
     st.header("Calmar Ratio")
-    fig_calmar = go.Figure()
-    fig_calmar.add_trace(go.Scatter(x=computed_metrics['calmar'].index, y=computed_metrics['calmar'], name=f"{ticker}", line=dict(color='magenta')))
-    fig_calmar.update_layout(
-        xaxis=dict(title="Date"),
-        yaxis=dict(title="Calmar Ratio")
-    )
+    
     st.plotly_chart(fig_calmar, use_container_width=True)
 
 if "Drawdown" in selected_metrics:
     st.header("Full Drawdown")
-    fig_dd = go.Figure()
-    fig_dd.add_trace(go.Scatter(x=full_drawdown.index, y=full_drawdown, name=f"{ticker}", line=dict(color='red')))
-    fig_dd.update_layout(
-        xaxis=dict(title="Date"),
-        yaxis=dict(title="Drawdown")
-    )
+    
 
     if show_drawdown_comp:
         for comp_ticker, comp_metrics in comparison_data.items():
