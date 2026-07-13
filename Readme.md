@@ -37,6 +37,9 @@ Maximum Drawdown
 Sharpe Ratio
 Sortino Ratio
 
+Sharpe = (rolling_mean/rolling_std)*sqrt(252) # the fact that we multiply it by sqrt of 252 is a beautiful statistical logic. annualization.
+
+rolling_drawdown is just the equity/rolling_peak - 1
 
 I realised that the beauty of returns lies in the fact that they're dimensionless.
 
@@ -73,9 +76,12 @@ Then came CAGR, Calmar Ratio, and Sortino Ratio
 
 
 Sortino ratio is better at punishing the negative standard deviations. Cause people don't really complain about a strategy if a stock has upward volatility lol.
-
+the formula = rolling_mean/negative_returns_std
 
 Calmar Ratio, is kind of weird really. It's like, the average returns you could get compared to the amount of struggle you'd have to go through via the strategy. 
 
-You could say, it's basically letting you decide whether the risk to reward ratio is worth it, but it's like, lowkey similar to sharpe ratio yet different from sharpe ratio. It's just another perspective of looking at what Sharpe ratio is telling you about.
+CAGR, Compound Annual Growth Rate, is just (end_price/start_price)**(1/n) where n is number of years we're calculating over.
 
+Calmar = CAGR/abs(drawdown)
+
+You could say, it's basically letting you decide whether the risk to reward ratio is worth it, but it's like, lowkey similar to sharpe ratio yet different from sharpe ratio. It's just another perspective of looking at what Sharpe ratio is telling you about.
